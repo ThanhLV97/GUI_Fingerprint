@@ -205,6 +205,7 @@ class FingerPrint():
             positionNumber = result[0]
             accuracyScore = result[1]
             if (positionNumber == -1):
+                print('-------------')
                 logging.info('No match found!')
 
             else:
@@ -212,22 +213,24 @@ class FingerPrint():
                        'message': 'Register Successfully'}
                 logging.info('Found template at position: \t' +
                              str(positionNumber))
-                # logging.info('Accuracy: \t' + str(accuracyScore))
 
-            # Loads the found template to charbuffer 1
-            self.f.loadTemplate(positionNumber, Finger.CHARBUFFER1)
+                # Loads the found template to charbuffer 1
+                self.f.loadTemplate(positionNumber, Finger.CHARBUFFER1)
 
-            # Downloads the characteristics of template loaded in charbuffer 1
-            characterics = str(
+                # Downloads the characteristics of template loaded in charbuffer 1
+                characterics = str(
                 self.f.downloadCharacteristics(
                     Finger.CHARBUFFER1)).encode('utf-8')
 
-            # Hashes characteristics of template
-            logging.info('SHA-2 hash of template: \t' +
-                         hashlib.sha256(characterics).hexdigest())
-            res = {'code': '200', 'status': '200',
-                       'message': 'Register Successfully'}
-            return res
+                # Hashes characteristics of template
+                print(characterics)
+                logging.info('SHA-2 hash of template: \t' +
+                            hashlib.sha256(characterics).hexdigest())
+                res = {'code': '200', 'status': '200',
+                        'message': 'Register Successfully'}
+                return res
+                # logging.info('Accuracy: \t' + str(accuracyScore))
+
 
         except Exception as e:
             logging.error('Operation failed!')
