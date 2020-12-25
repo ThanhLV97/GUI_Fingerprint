@@ -111,6 +111,9 @@ class FingerPrint():
             self._enter_info(positionNumber)
             message = {'code': '200', 'status': 'DONE',
                    'message': 'Finger enrolled successfully'}
+            
+            res = {'code': '200', 'status': 'DONE',
+                   'message': 'Finger enrolled successfully'}
             return res
 
         except Exception as e:
@@ -222,7 +225,8 @@ class FingerPrint():
             # Hashes characteristics of template
             logging.info('SHA-2 hash of template: \t' +
                          hashlib.sha256(characterics).hexdigest())
-
+            res = {'code': '200', 'status': '200',
+                       'message': 'Register Successfully'}
             return res
 
         except Exception as e:
@@ -263,7 +267,7 @@ class FingerPrint():
                 namelist.append(row[1])
             # Two times checking
             for i in range(2):
-                new_name = input('Enter your ID: ')
+                new_name = input('Enter your ID: ').lower()
 
                 if new_name in namelist:
                     if i == 2:
@@ -271,7 +275,6 @@ class FingerPrint():
                         time.sleep(1*100)
                         break
                     logging.info('Name is registed!!!')
-                    new_name = input('Enter your name again:  ')
                     i += 1
                 else:
                     if index == 0:
