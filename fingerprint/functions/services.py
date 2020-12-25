@@ -255,14 +255,17 @@ class FingerPrint():
         Args:
             index (int): Position available for register
         """
-
+        namelist = []
         with open(self.db_path, 'a') as f:
             db = open(self.db_path, 'r').read()
+            db1 = csv.reader(open(self.db_path, 'r'))
+            for row in db1:
+                namelist.append(row[1])
             # Two times checking
             for i in range(2):
                 new_name = input('Enter your ID: ')
-                print(db.split())
-                if new_name in db.split():
+
+                if new_name in namelist:
                     if i == 2:
                         logging.info('Try again after 5 munites!!!')
                         time.sleep(1*100)
