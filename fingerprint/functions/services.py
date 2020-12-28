@@ -187,14 +187,16 @@ class FingerPrint():
             # Tries to search the finger and calculate hash
 
             logging.info('Waiting for template...')
-            self.message = {'code': '100', 'message': 'Waiting for template...'}
+            self.message = {'code': '102', 'status': 'waiting',
+                            'message': 'Waiting for template...'}
 
             # Wait that finger is read
             # Serial read in __readPacket
 
             while (self.f.readImage() is False):
                 pass
-            self.message = {'code': '101', 'message': 'Get template successfully'}
+            self.message = {'code': '102', 'status': 'received',
+                            'message': 'Get template successfully'}
             # Converts read image to characteristics
             # and stores it in charbuffer 1
 
@@ -206,10 +208,11 @@ class FingerPrint():
             accuracyScore = result[1]
             if (positionNumber == -1):
                 logging.info('No match found!')
-                self.message = {'code': '102', 'message': 'No match found!'}
+                self.message = {'code': '102', 'status': 'Not found',
+                                'message': 'No match found!'}
 
             else:
-                self.message = {'code': '200',
+                self.message = {'code': '200', 'status': 'successfull'
                                 'message': 'Register Successfully'}
 
                 logging.info('Found template at position: \t' +
@@ -231,7 +234,7 @@ class FingerPrint():
         except Exception as e:
             logging.error('Operation failed!')
             logging.error('Exception message: ' + str(e))
-            self.message = {'code': '404',
+            self.message = {'code': '404', 'status': 'ERROR'
                             'message': str(e)}
             exit(1)
 
