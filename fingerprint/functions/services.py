@@ -7,7 +7,7 @@ import pandas as pd
 from .config import Finger
 from .R305 import PyFingerprint
 
-"""R305 fingerprint sensor for raspbbery pi 4"""
+"""R305 fingerprint sensor for raspberry pi 4"""
 __author__ = "Thanhlv"
 __version__ = "0.1.0"
 __date__ = "2020-Dec-17"
@@ -40,7 +40,7 @@ class FingerPrint():
                                    self.address, self.password)
 
             if (self.f.verifyPassword() is False):
-                raise ValueError('The given fingerprint sensor password is wrong!')
+                raise ValueError('The given fingerprint sensor password is wrong !')
 
         except Exception as e:
             logging.error('The fingerprint sensor could not be initialized!')
@@ -56,13 +56,15 @@ class FingerPrint():
         """
         # Tries to enroll new finger
         try:
-            self.message = {'code': '100', 'status':'begin', 'message': 'Please give template simple'}
-            
+            self.message = {'code': '100', 'status': 'begin',
+                            'message': 'Please give template simple'}
+
             # Wait that finger is read
             while (self.f.readImage() is False):
-                self.message = {'code': '102','status':'waiting' 'massage': 'Waiting for template simple'}
+                self.message = {'code': '102', 'status': 'waiting',
+                                'massage': 'Waiting for template simple'}
                 pass
-            
+
             # Converts read image to characteristics
             # and stores it in charbuffer 1
             self.f.convertImage(Finger.CHARBUFFER1)
@@ -77,12 +79,14 @@ class FingerPrint():
                              str(positionNumber))
                 exit(0)
 
-            self.message = {'code': '102', 'status': 'processing', 'message': 'Processing .....'}
+            self.message = {'code': '102', 'status': 'processing',
+                            'message': 'Processing .....'}
             logging.info('Proccessing...')
             time.sleep(2)
 
             logging.info('Waiting for same finger again...')
-            self.message = {'code': '102', 'status': 'waiting', 'message': 'Please try again ......'}
+            self.message = {'code': '102', 'status': 'waiting',
+                            'message': 'Please try again ......'}
             # Wait that finger is read again
             while (self.f.readImage() is False):
                 pass
@@ -93,7 +97,8 @@ class FingerPrint():
 
             # Compares the charbuffers
             if (self.f.compareCharacteristics() == 0):
-                self.message = {'code': '401', 'status': 'processing', 'message': 'Not matching '}
+                self.message = {'code': '401', 'status': 'processing',
+                                'message': 'Not matching '}
 
                 raise Exception('Fingers do not match')
 
@@ -138,9 +143,8 @@ class FingerPrint():
             positionNumber = position
             positionNumber = int(positionNumber)
             self.message = {'code': '102', 'status': 'Delete template',
-                            'message': 'Delete template in finger print memory '}
+                            'message': 'Delete template in finger print memory'}
             if (self.f.deleteTemplate(positionNumber) is True):
-
 
         except Exception as e:
             logging.error('Operation failed!')
@@ -167,7 +171,7 @@ class FingerPrint():
             positionNumber = int(positionNumber)
 
             if (self.f.deleteTemplate(positionNumber) is True):
-                print('Template deleted!')
+                logging.error('template is removed !!!')
 
         except Exception as e:
             logging.error('Operation failed!')

@@ -9,7 +9,7 @@ from .config import Finger
 class PyFingerprint(object):
     """
         Manages R305 fingerprint sensor.
- 
+
     Wiring:
 
         R305-TX <-> rasp-10(RX)
@@ -23,7 +23,8 @@ class PyFingerprint(object):
     __password = None
     __serial = None
 
-    def __init__(self, port = '/dev/ttyAMA0', baudRate = 57600, address = 0xFFFFFFFF, password = 0x00000000):
+    def __init__(self, port='/dev/ttyAMA0', baudRate=57600,
+                 address=0xFFFFFFFF, password=0x00000000):
         """
         Constructor
 
@@ -37,22 +38,23 @@ class PyFingerprint(object):
             ValueError: if baud rate, address or password are invalid
         """
 
-        if ( baudRate < 9600 or baudRate > 115200 or baudRate % 9600 != 0 ):
+        if (baudRate < 9600 or baudRate > 115200 or baudRate % 9600 != 0):
             raise ValueError('The given baud rate is invalid!')
 
-        if ( address < 0x00000000 or address > 0xFFFFFFFF ):
+        if (address < 0x00000000 or address > 0xFFFFFFFF):
             raise ValueError('The given address is invalid!')
 
-        if ( password < 0x00000000 or password > 0xFFFFFFFF ):
+        if (password < 0x00000000 or password > 0xFFFFFFFF):
             raise ValueError('The given password is invalid!')
 
         self.__address = address
         self.__password = password
 
-        ## Initialize PySerial connection
-        self.__serial = serial.Serial(port = port, baudrate = baudRate, bytesize = serial.EIGHTBITS, timeout = 2)
+        # Initialize PySerial connection
+        self.__serial = serial.Serial(port=port, baudrate=baudRate,
+                                      bytesize=serial.EIGHTBITS, timeout=2)
 
-        if ( self.__serial.isOpen() == True ):
+        if(self.__serial.isOpen() is True):
             self.__serial.close()
 
         self.__serial.open()
@@ -62,9 +64,10 @@ class PyFingerprint(object):
         Destructor
 
         """
-        ## Close connection if still established
-        if ( self.__serial is not None and self.__serial.isOpen() == True ):
+        # Close connection if still established
+        if (self.__serial is not None and self.__serial.isOpen() is True):
             self.__serial.close()
+
     def __rightShift(self, n, x):
         """
         Performs a right-shift.
@@ -105,11 +108,11 @@ class PyFingerprint(object):
             The bit number (int)
         """
 
-        ## A bitshift 2 ^ p
+        # A bitshift 2 ^ p
         twoP = 1 << p
 
-        ## Binary AND composition (on both positions must be a 1)
-        ## This can only happen at position p
+        # Binary AND composition (on both positions must be a 1)
+        # This can only happen at position p
         result = n & twoP
         return int(result > 0)
 
@@ -148,7 +151,7 @@ class PyFingerprint(object):
             packetPayload (tuple): The payload
         """
 
-        ## Write header (one byte at once)
+        # Write header (one byte at once)
         self.__serial.write(self.__byteToString(self.__rightShift(Finger.STARTCODE, 8)))
         self.__serial.write(self.__byteToString(self.__rightShift(Finger.STARTCODE, 0)))
 
@@ -159,21 +162,21 @@ class PyFingerprint(object):
 
         self.__serial.write(self.__byteToString(packetType))
 
-        ## The packet length = package payload (n bytes) + checksum (2 bytes)
+        # The packet length = package payload (n bytes) + checksum (2 bytes)
         packetLength = len(packetPayload) + 2
 
         self.__serial.write(self.__byteToString(self.__rightShift(packetLength, 8)))
         self.__serial.write(self.__byteToString(self.__rightShift(packetLength, 0)))
 
-        ## The packet checksum = packet type (1 byte) + packet length (2 bytes) + payload (n bytes)
+        # The packet checksum = packet type (1 byte) + packet length (2 bytes) + payload (n bytes)
         packetChecksum = packetType + self.__rightShift(packetLength, 8) + self.__rightShift(packetLength, 0)
 
-        ## Write payload
+        # Write payload
         for i in range(0, len(packetPayload)):
             self.__serial.write(self.__byteToString(packetPayload[i]))
             packetChecksum += packetPayload[i]
 
-        ## Write checksum (2 bytes)
+        # Write checksum (2 bytes)
         self.__serial.write(self.__byteToString(self.__rightShift(packetChecksum, 8)))
         self.__serial.write(self.__byteToString(self.__rightShift(packetChecksum, 0)))
 
@@ -193,57 +196,57 @@ class PyFingerprint(object):
         receivedPacketData = []
         i = 0
 
-        while ( True ):
+        while(True):
 
-            ## Read one byte
+            # Read one byte
             receivedFragment = self.__serial.read()
 
-            if ( len(receivedFragment) != 0 ):
+            if(len(receivedFragment) != 0):
                 receivedFragment = self.__stringToByte(receivedFragment)
 
             else:
                 continue
 
-            ## Insert byte if packet seems valid
+            # Insert byte if packet seems valid
             receivedPacketData.insert(i, receivedFragment)
             i += 1
 
-            ## Packet could be complete (the minimal packet size is 12 bytes)
-            if ( i >= 12 ):
-                ## Check the packet header
-                if ( receivedPacketData[0] != self.__rightShift
-                (Finger.STARTCODE, 8) or receivedPacketData[1] != self.__rightShift(Finger.STARTCODE, 0) ):
+            # Packet could be complete (the minimal packet size is 12 bytes)
+            if (i >= 12):
+                # Check the packet header
+                if (receivedPacketData[0] != self.__rightShift
+                (Finger.STARTCODE, 8) or receivedPacketData[1] != self.__rightShift(Finger.STARTCODE, 0)):
                     raise Exception('The received packet do not begin with a valid header!')
 
-                ## Calculate packet payload length (combine the 2 length bytes)
+                # Calculate packet payload length (combine the 2 length bytes)
                 packetPayloadLength = self.__leftShift(receivedPacketData[7], 8)
                 packetPayloadLength = packetPayloadLength | self.__leftShift(receivedPacketData[8], 0)
                 
-                ## Check if the packet is still fully received
-                ## Condition: index counter < packet payload length + packet frame
-                if ( i < packetPayloadLength + 9 ):
+                # Check if the packet is still fully received
+                # Condition: index counter < packet payload length + packet frame
+                if (i < packetPayloadLength + 9):
                     continue
 
-                ## At this point the packet should be fully received
+                # At this point the packet should be fully received
 
                 packetType = receivedPacketData[6]
         
-                ## Calculate checksum:
-                ## checksum = packet type (1 byte) + packet length (2 bytes) + packet payload (n bytes)
+                # Calculate checksum:
+                # checksum = packet type (1 byte) + packet length (2 bytes) + packet payload (n bytes)
                 packetChecksum = packetType + receivedPacketData[7] + receivedPacketData[8]
 
                 packetPayload = []
 
-                ## Collect package payload (ignore the last 2 checksum bytes)
+                # Collect package payload (ignore the last 2 checksum bytes)
                 for j in range(9, 9 + packetPayloadLength - 2):
                     packetPayload.append(receivedPacketData[j])
                     packetChecksum += receivedPacketData[j]
 
-                ## Calculate full checksum of the 2 separate checksum bytes
+                # Calculate full checksum of the 2 separate checksum bytes
                 receivedChecksum = self.__leftShift(receivedPacketData[i - 2], 8)
                 receivedChecksum = receivedChecksum | self.__leftShift(receivedPacketData[i - 1], 0)
 
-                if ( receivedChecksum != packetChecksum ):
+                if (receivedChecksum != packetChecksum):
                     raise Exception('The received packet is corrupted (the checksum is wrong)!')
 
                 return (packetType, packetPayload)
@@ -272,23 +275,23 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if (receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Sensor password is correct
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Sensor password is correct
+        if(receivedPacketPayload[0] == Finger.OK):
             return True
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        elif ( receivedPacketPayload[0] == Finger.ADDRCODE
+        elif(receivedPacketPayload[0] == Finger.ADDRCODE
 
- ):
+):
             raise Exception('The address is wrong')
 
-        ## DEBUG: Sensor password is wrong
-        elif ( receivedPacketPayload[0] == Finger.ERROR_WRONGPASSWORD ):
+        # DEBUG: Sensor password is wrong
+        elif(receivedPacketPayload[0] == Finger.ERROR_WRONGPASSWORD):
             return False
 
         else:
@@ -308,8 +311,8 @@ class PyFingerprint(object):
             Exception: if an error occured
         """
 
-        ## Validate the password (maximum 4 bytes)
-        if ( newPassword < 0x00000000 or newPassword > 0xFFFFFFFF ):
+        # Validate the password (maximum 4 bytes)
+        if(newPassword < 0x00000000 or newPassword > 0xFFFFFFFF):
             raise ValueError('The given password is invalid!')
 
         packetPayload = (
@@ -326,15 +329,15 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Password set was successful
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Password set was successful
+        if(receivedPacketPayload[0] == Finger.OK):
             self.__password = newPassword
             return True
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
         else:
@@ -354,8 +357,8 @@ class PyFingerprint(object):
             Exception: if any error occurs
         """
 
-        ## Validate the address (maximum 4 bytes)
-        if ( newAddress < 0x00000000 or newAddress > 0xFFFFFFFF ):
+        # Validate the address (maximum 4 bytes)
+        if(newAddress < 0x00000000 or newAddress > 0xFFFFFFFF):
             raise ValueError('The given address is invalid!')
 
         packetPayload = (
@@ -372,15 +375,15 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Address set was successful
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Address set was successful
+        if(receivedPacketPayload[0] == Finger.OK):
             self.__address = newAddress
             return True
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
         else:
@@ -402,25 +405,25 @@ class PyFingerprint(object):
             Exception: if any error occurs
         """
 
-        ## Validate the baud rate parameter
-        if ( parameterNumber == Finger.SETSYSTEMPARAMETER_BAUDRATE ):
+        # Validate the baud rate parameter
+        if(parameterNumber == Finger.SETSYSTEMPARAMETER_BAUDRATE):
 
-            if ( parameterValue < 1 or parameterValue > 12 ):
+            if(parameterValue < 1 or parameterValue > 12):
                 raise ValueError('The given baud rate parameter is invalid!')
 
-        ## Validate the security level parameter
-        elif ( parameterNumber == Finger.SETSYSTEMPARAMETER_SECURITY_LEVEL ):
+        # Validate the security level parameter
+        elif(parameterNumber == Finger.SETSYSTEMPARAMETER_SECURITY_LEVEL):
 
-            if ( parameterValue < 1 or parameterValue > 5 ):
+            if(parameterValue < 1 or parameterValue > 5):
                 raise ValueError('The given security level parameter is invalid!')
 
-        ## Validate the package length parameter
-        elif ( parameterNumber == Finger.SETSYSTEMPARAMETER_PACKAGE_SIZE ):
+        # Validate the package length parameter
+        elif(parameterNumber == Finger.SETSYSTEMPARAMETER_PACKAGE_SIZE):
 
-            if ( parameterValue < 0 or parameterValue > 3 ):
+            if(parameterValue < 0 or parameterValue > 3):
                 raise ValueError('The given package length parameter is invalid!')
 
-        ## The parameter number is not valid
+        # The parameter number is not valid
         else:
             raise ValueError('The given parameter number is invalid!')
 
@@ -436,17 +439,17 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Parameter set was successful
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Parameter set was successful
+        if(receivedPacketPayload[0] == Finger.OK):
             return True
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_INVALIDREGISTER ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_INVALIDREGISTER):
             raise Exception('Invalid register number')
 
         else:
@@ -531,23 +534,23 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Read successfully
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Read successfully
+        if(receivedPacketPayload[0] == Finger.OK):
 
             statusRegister     = self.__leftShift(receivedPacketPayload[1], 8) | self.__leftShift(receivedPacketPayload[2], 0)
             systemID           = self.__leftShift(receivedPacketPayload[3], 8) | self.__leftShift(receivedPacketPayload[4], 0)
             storageCapacity    = self.__leftShift(receivedPacketPayload[5], 8) | self.__leftShift(receivedPacketPayload[6], 0)
             securityLevel      = self.__leftShift(receivedPacketPayload[7], 8) | self.__leftShift(receivedPacketPayload[8], 0)
-            deviceAddress      = ((receivedPacketPayload[9] << 8 | receivedPacketPayload[10]) << 8 | receivedPacketPayload[11]) << 8 | receivedPacketPayload[12] ## TODO
+            deviceAddress      = ((receivedPacketPayload[9] << 8 | receivedPacketPayload[10]) << 8 | receivedPacketPayload[11]) << 8 | receivedPacketPayload[12] # TODO
             packetLength       = self.__leftShift(receivedPacketPayload[13], 8) | self.__leftShift(receivedPacketPayload[14], 0)
             baudRate           = self.__leftShift(receivedPacketPayload[15], 8) | self.__leftShift(receivedPacketPayload[16], 0)
-            
+
             return (statusRegister, systemID, storageCapacity, securityLevel, deviceAddress, packetLength, baudRate)
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
         else:
@@ -630,7 +633,7 @@ class PyFingerprint(object):
             Exception: if any error occurs
         """
 
-        if ( page < 0 or page > 3 ):
+        if(page < 0 or page > 3):
             raise ValueError('The given index page is invalid!')
 
         packetPayload = (
@@ -644,26 +647,26 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Read index table successfully
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Read index table successfully
+        if(receivedPacketPayload[0] == Finger.OK):
 
             templateIndex = []
 
-            ## Contain the table page bytes (skip the first status byte)
+            # Contain the table page bytes (skip the first status byte)
             pageElements = receivedPacketPayload[1:]
 
             for pageElement in pageElements:
-                ## Test every bit (bit = template position is used indicator) of a table page element
+                # Test every bit (bit = template position is used indicator) of a table page element
                 for p in range(0, 7 + 1):
                     positionIsUsed = (self.__bitAtPosition(pageElement, p) == 1)
                     templateIndex.append(positionIsUsed)
 
             return templateIndex
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
         else:
@@ -690,16 +693,16 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Read successfully
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Read successfully
+        if(receivedPacketPayload[0] == Finger.OK):
             templateCount = self.__leftShift(receivedPacketPayload[1], 8)
             templateCount = templateCount | self.__leftShift(receivedPacketPayload[2], 0)
             return templateCount
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
         else:
@@ -727,28 +730,28 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Image read successful
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Image read successful
+        if(receivedPacketPayload[0] == Finger.OK):
             return True
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        ## DEBUG: No finger found
-        elif ( receivedPacketPayload[0] == Finger.ERROR_NOFINGER ):
+        # DEBUG: No finger found
+        elif(receivedPacketPayload[0] == Finger.ERROR_NOFINGER):
             return False
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_READIMAGE ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_READIMAGE):
             raise Exception('Could not read image')
 
         else:
             raise Exception('Unknown error '+ hex(receivedPacketPayload[0]))
 
-    ## TODO:
-    ## Implementation of uploadImage()
+    # TODO:
+    # Implementation of uploadImage()
 
     def downloadImage(self, imageDestination):
         """
@@ -764,7 +767,7 @@ class PyFingerprint(object):
 
         destinationDirectory = os.path.dirname(imageDestination)
 
-        if ( os.access(destinationDirectory, os.W_OK) == False ):
+        if(os.access(destinationDirectory, os.W_OK) == False):
             raise ValueError('The given destination directory "' + destinationDirectory + '" is not writable!')
 
         packetPayload = (
@@ -773,25 +776,25 @@ class PyFingerprint(object):
 
         self.__writePacket(Finger.COMMANDPACKET, packetPayload)
 
-        ## Get first reply packet
+        # Get first reply packet
         receivedPacket = self.__readPacket()
 
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: The sensor will sent follow-up packets
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: The sensor will sent follow-up packets
+        if(receivedPacketPayload[0] == Finger.OK):
             pass
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_DOWNLOADIMAGE
+        elif(receivedPacketPayload[0] == Finger.ERROR_DOWNLOADIMAGE
 
- ):
+):
             raise Exception('Could not download image')
 
         else:
@@ -799,20 +802,20 @@ class PyFingerprint(object):
 
         imageData = []
 
-        ## Get follow-up data packets until the last data packet is received
-        while ( receivedPacketType != Finger.ENDDATAPACKET ):
+        # Get follow-up data packets until the last data packet is received
+        while(receivedPacketType != Finger.ENDDATAPACKET):
 
             receivedPacket = self.__readPacket()
 
             receivedPacketType = receivedPacket[0]
             receivedPacketPayload = receivedPacket[1]
 
-            if ( receivedPacketType != Finger.DATAPACKET and receivedPacketType != Finger.ENDDATAPACKET ):
+            if(receivedPacketType != Finger.DATAPACKET and receivedPacketType != Finger.ENDDATAPACKET):
                 raise Exception('The received packet is no data packet!')
 
             imageData.append(receivedPacketPayload)
 
-        ## Initialize image
+        # Initialize image
         resultImage = Finger.new('L', (256, 288), 'white')
         pixels = resultFinger.load()
         (resultImageWidth, resultImageHeight) = resultFinger.size
@@ -822,17 +825,17 @@ class PyFingerprint(object):
         for y in range(resultImageHeight):
             for x in range(resultImageWidth):
 
-                ## One byte contains two pixels
-                ## Thanks to Danylo Esterman <soundcracker@gmail.com> for the "multiple with 17" improvement:
+                # One byte contains two pixels
+                # Thanks to Danylo Esterman <soundcracker@gmail.com> for the "multiple with 17" improvement:
                 if (x % 2 == 0):
-                    ## Draw left 4 Bits one byte of package
+                    # Draw left 4 Bits one byte of package
                     pixels[x, y] = (imageData[row][column]  >> 4) * 17
                 else:
-                    ## Draw right 4 Bits one byte of package
+                    # Draw right 4 Bits one byte of package
                     pixels[x, y] = (imageData[row][column] & 0x0F) * 17
                     column += 1
 
-                    ## Reset
+                    # Reset
                     if (column == len(imageData[row])):
                         row += 1
                         column = 0
@@ -854,7 +857,7 @@ class PyFingerprint(object):
             Exception: if any error occurs
         """
 
-        if ( charBufferNumber != Finger.CHARBUFFER1 and charBufferNumber != Finger.CHARBUFFER2 ):
+        if(charBufferNumber != Finger.CHARBUFFER1 and charBufferNumber != Finger.CHARBUFFER2):
             raise ValueError('The given char buffer number is invalid!')
 
         packetPayload = (
@@ -868,23 +871,23 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Image converted
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Image converted
+        if(receivedPacketPayload[0] == Finger.OK):
             return True
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_MESSYIMAGE ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_MESSYIMAGE):
             raise Exception('The image is too messy')
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_FEWFEATUREPOINTS ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_FEWFEATUREPOINTS):
             raise Exception('The image contains too few feature points')
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_INVALIDIMAGE ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_INVALIDIMAGE):
             raise Exception('The image is invalid')
 
         else:
@@ -912,18 +915,18 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Template created successful
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Template created successful
+        if(receivedPacketPayload[0] == Finger.OK):
             return True
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        ## DEBUG: The characteristics not matching
-        elif ( receivedPacketPayload[0] == Finger.ERROR_CHARACTERISTICSMISMATCH ):
+        # DEBUG: The characteristics not matching
+        elif(receivedPacketPayload[0] == Finger.ERROR_CHARACTERISTICSMISMATCH):
             return False
 
         else:
@@ -959,10 +962,10 @@ class PyFingerprint(object):
                         break
                     
 
-        if ( positionNumber < 0x0000 or positionNumber >= self.getStorageCapacity() ):
+        if(positionNumber < 0x0000 or positionNumber >= self.getStorageCapacity()):
             raise ValueError('The given position number is invalid!')
 
-        if ( charBufferNumber != Finger.CHARBUFFER1 and charBufferNumber != Finger.CHARBUFFER2 ):
+        if(charBufferNumber != Finger.CHARBUFFER1 and charBufferNumber != Finger.CHARBUFFER2):
             raise ValueError('The given char buffer number is invalid!')
 
         packetPayload = (
@@ -978,20 +981,20 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Template stored successful
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Template stored successful
+        if(receivedPacketPayload[0] == Finger.OK):
             return positionNumber
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_INVALIDPOSITION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_INVALIDPOSITION):
             raise Exception('Could not store template in that position')
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_FLASH ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_FLASH):
             raise Exception('Error writing to flash')
 
         else:
@@ -1016,10 +1019,10 @@ class PyFingerprint(object):
             Exception: if any error occurs
         """
 
-        if ( charBufferNumber != Finger.CHARBUFFER1 and charBufferNumber != Finger.CHARBUFFER2 ):
+        if(charBufferNumber != Finger.CHARBUFFER1 and charBufferNumber != Finger.CHARBUFFER2):
             raise ValueError('The given charbuffer number is invalid!')
 
-        if ( count > 0 ):
+        if(count > 0):
             templatesCount = count
         else:
             templatesCount = self.getStorageCapacity()
@@ -1039,11 +1042,11 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Found template
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Found template
+        if(receivedPacketPayload[0] == Finger.OK):
 
             positionNumber = self.__leftShift(receivedPacketPayload[1], 8)
             positionNumber = positionNumber | self.__leftShift(receivedPacketPayload[2], 0)
@@ -1053,11 +1056,11 @@ class PyFingerprint(object):
 
             return (positionNumber, accuracyScore)
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        ## DEBUG: Did not found a matching template
-        elif ( receivedPacketPayload[0] == Finger.ERROR_NOTEMPLATEFOUND ):
+        # DEBUG: Did not found a matching template
+        elif(receivedPacketPayload[0] == Finger.ERROR_NOTEMPLATEFOUND):
             return (-1, -1)
 
         else:
@@ -1080,10 +1083,10 @@ class PyFingerprint(object):
             Exception: if any error occurs
         """
 
-        if ( positionNumber < 0x0000 or positionNumber >= self.getStorageCapacity() ):
+        if(positionNumber < 0x0000 or positionNumber >= self.getStorageCapacity()):
             raise ValueError('The given position number is invalid!')
 
-        if ( charBufferNumber != Finger.CHARBUFFER1 and charBufferNumber != Finger.CHARBUFFER2 ):
+        if(charBufferNumber != Finger.CHARBUFFER1 and charBufferNumber != Finger.CHARBUFFER2):
             raise ValueError('The given char buffer number is invalid!')
 
         packetPayload = (
@@ -1099,20 +1102,20 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Template loaded successful
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Template loaded successful
+        if(receivedPacketPayload[0] == Finger.OK):
             return True
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_LOADTEMPLATE ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_LOADTEMPLATE):
             raise Exception('The template could not be read')
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_INVALIDPOSITION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_INVALIDPOSITION):
             raise Exception('Could not load template from that position')
 
         else:
@@ -1137,10 +1140,10 @@ class PyFingerprint(object):
 
         capacity = self.getStorageCapacity()
 
-        if ( positionNumber < 0x0000 or positionNumber >= capacity ):
+        if(positionNumber < 0x0000 or positionNumber >= capacity):
             raise ValueError('The given position number is invalid!')
 
-        if ( count < 0x0000 or count > capacity - positionNumber ):
+        if(count < 0x0000 or count > capacity - positionNumber):
             raise ValueError('The given count is invalid!')
 
         packetPayload = (
@@ -1157,21 +1160,21 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Template deleted successful
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Template deleted successful
+        if(receivedPacketPayload[0] == Finger.OK):
             return True
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_INVALIDPOSITION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_INVALIDPOSITION):
             raise Exception('Invalid position')
 
-        ## DEBUG: Could not delete template
-        elif ( receivedPacketPayload[0] == Finger.ERROR_DELETETEMPLATE ):
+        # DEBUG: Could not delete template
+        elif(receivedPacketPayload[0] == Finger.ERROR_DELETETEMPLATE):
             return False
 
         else:
@@ -1199,20 +1202,20 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Database cleared successful
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Database cleared successful
+        if(receivedPacketPayload[0] == Finger.OK):
             return True
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        ## DEBUG: Could not clear database
-        elif ( receivedPacketPayload[0] == Finger.ERROR_CLEARDATABASE
+        # DEBUG: Could not clear database
+        elif(receivedPacketPayload[0] == Finger.ERROR_CLEARDATABASE
 
- ):
+):
             return False
 
         else:
@@ -1240,22 +1243,22 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: Comparison successful
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: Comparison successful
+        if(receivedPacketPayload[0] == Finger.OK):
             accuracyScore = self.__leftShift(receivedPacketPayload[1], 8)
             accuracyScore = accuracyScore | self.__leftShift(receivedPacketPayload[2], 0)
             return accuracyScore
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        ## DEBUG: The characteristics do not matching
-        elif ( receivedPacketPayload[0] == Finger.ERROR_NOTMATCHING
+        # DEBUG: The characteristics do not matching
+        elif(receivedPacketPayload[0] == Finger.ERROR_NOTMATCHING
 
- ):
+):
             return 0
 
         else:
@@ -1281,15 +1284,15 @@ class PyFingerprint(object):
             Exception: if any error occurs
         """
 
-        if ( charBufferNumber != Finger.CHARBUFFER1 and charBufferNumber != Finger.CHARBUFFER2 ):
+        if(charBufferNumber != Finger.CHARBUFFER1 and charBufferNumber != Finger.CHARBUFFER2):
             raise ValueError('The given char buffer number is invalid!')
 
-        if ( characteristicsData == [0] ):
+        if(characteristicsData == [0]):
             raise ValueError('The characteristics data is required!')
 
         maxPacketSize = self.getMaxPacketSize()
 
-        ## Upload command
+        # Upload command
 
         packetPayload = (
             Finger.UPLOADCHARACTERISTICS,
@@ -1298,38 +1301,38 @@ class PyFingerprint(object):
 
         self.__writePacket(Finger.COMMANDPACKET, packetPayload)
 
-        ## Get first reply packet
+        # Get first reply packet
         receivedPacket = self.__readPacket()
 
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: The sensor will sent follow-up packets
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: The sensor will sent follow-up packets
+        if(receivedPacketPayload[0] == Finger.OK):
             pass
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        elif ( receivedPacketPayload[0] == Finger.PACKETRESPONSEFAIL
+        elif(receivedPacketPayload[0] == Finger.PACKETRESPONSEFAIL
 
- ):
+):
             raise Exception('Could not upload characteristics')
 
         else:
             raise Exception('Unknown error '+ hex(receivedPacketPayload[0]))
 
-        ## Upload data packets
+        # Upload data packets
         packetNumber = int(len(characteristicsData) / maxPacketSize)
 
-        if ( packetNumber <= 1 ):
+        if(packetNumber <= 1):
             self.__writePacket(Finger.ENDDATAPACKET, characteristicsData)
         else:
             i = 1
-            while ( i < packetNumber ):
+            while(i < packetNumber):
                 lfrom = (i-1) * maxPacketSize
                 lto = lfrom + maxPacketSize
                 self.__writePacket(Finger.DATAPACKET, characteristicsData[lfrom:lto])
@@ -1339,7 +1342,7 @@ class PyFingerprint(object):
             lto = len(characteristicsData)
             self.__writePacket(Finger.ENDDATAPACKET, characteristicsData[lfrom:lto])
 
-        ## Verify uploaded characteristics
+        # Verify uploaded characteristics
         characterics = self.downloadCharacteristics(charBufferNumber)
         return (characterics == characteristicsData)
 
@@ -1367,13 +1370,13 @@ class PyFingerprint(object):
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        if(receivedPacketPayload[0] == Finger.OK):
             pass
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
         else:
@@ -1403,7 +1406,7 @@ class PyFingerprint(object):
             Exception: if any error occurs
         """
 
-        if ( charBufferNumber != Finger.CHARBUFFER1 and charBufferNumber != Finger.CHARBUFFER2 ):
+        if(charBufferNumber != Finger.CHARBUFFER1 and charBufferNumber != Finger.CHARBUFFER2):
             raise ValueError('The given char buffer number is invalid!')
 
         packetPayload = (
@@ -1413,25 +1416,25 @@ class PyFingerprint(object):
 
         self.__writePacket(Finger.COMMANDPACKET, packetPayload)
 
-        ## Get first reply packet
+        # Get first reply packet
         receivedPacket = self.__readPacket()
 
         receivedPacketType = receivedPacket[0]
         receivedPacketPayload = receivedPacket[1]
 
-        if ( receivedPacketType != Finger.ACKPACKET ):
+        if(receivedPacketType != Finger.ACKPACKET):
             raise Exception('The received packet is no ack packet!')
 
-        ## DEBUG: The sensor will sent follow-up packets
-        if ( receivedPacketPayload[0] == Finger.OK ):
+        # DEBUG: The sensor will sent follow-up packets
+        if(receivedPacketPayload[0] == Finger.OK):
             pass
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION ):
+        elif(receivedPacketPayload[0] == Finger.ERROR_COMMUNICATION):
             raise Exception('Communication error')
 
-        elif ( receivedPacketPayload[0] == Finger.ERROR_DOWNLOADCHARACTERISTICS
+        elif(receivedPacketPayload[0] == Finger.ERROR_DOWNLOADCHARACTERISTICS
 
- ):
+):
             raise Exception('Could not download characteristics')
 
         else:
@@ -1439,15 +1442,15 @@ class PyFingerprint(object):
 
         completePayload = []
 
-        ## Get follow-up data packets until the last data packet is received
-        while ( receivedPacketType != Finger.ENDDATAPACKET ):
+        # Get follow-up data packets until the last data packet is received
+        while(receivedPacketType != Finger.ENDDATAPACKET):
 
             receivedPacket = self.__readPacket()
 
             receivedPacketType = receivedPacket[0]
             receivedPacketPayload = receivedPacket[1]
 
-            if ( receivedPacketType != Finger.DATAPACKET and receivedPacketType != Finger.ENDDATAPACKET ):
+            if(receivedPacketType != Finger.DATAPACKET and receivedPacketType != Finger.ENDDATAPACKET):
                 raise Exception('The received packet is no data packet!')
 
             for i in range(0, len(receivedPacketPayload)):
