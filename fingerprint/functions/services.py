@@ -56,11 +56,11 @@ class FingerPrint():
         """
         # Tries to enroll new finger
         try:
-            self.message = {'code': '100', 'message': 'Please give template simple'}
+            self.message = {'code': '100', 'status':'begin', 'message': 'Please give template simple'}
             
             # Wait that finger is read
             while (self.f.readImage() is False):
-                self.message = {'code': '101', 'massage': 'Waiting for template simple'}
+                self.message = {'code': '102','status':'waiting' 'massage': 'Waiting for template simple'}
                 pass
             
             # Converts read image to characteristics
@@ -71,17 +71,18 @@ class FingerPrint():
             positionNumber = result[0]
 
             if (positionNumber >= 0):
-                self.message = {'code': '200', 'message': 'You has been registered'}
+                self.message = {'code': '200', 'status': 'registed',
+                                'message': 'You has been registered'}
                 logging.info('Template already exists at position #' +
                              str(positionNumber))
                 exit(0)
 
-            self.message = {'code': '101', 'message': 'Processing .....'}
+            self.message = {'code': '102', 'status': 'processing', 'message': 'Processing .....'}
             logging.info('Proccessing...')
             time.sleep(2)
 
             logging.info('Waiting for same finger again...')
-            self.message = {'code': '102', 'message': 'Please try again ......'}
+            self.message = {'code': '102', 'status': 'waiting', 'message': 'Please try again ......'}
             # Wait that finger is read again
             while (self.f.readImage() is False):
                 pass
@@ -92,7 +93,7 @@ class FingerPrint():
 
             # Compares the charbuffers
             if (self.f.compareCharacteristics() == 0):
-                self.message = {'code': '401', ' message': 'Not matching '}
+                self.message = {'code': '401', 'status': 'processing', 'message': 'Not matching '}
 
                 raise Exception('Fingers do not match')
 
@@ -105,12 +106,14 @@ class FingerPrint():
             logging.info('New template position #' + str(positionNumber))
 
             self._enter_info(positionNumber)
-            self.message = {'code': '200', 'status': 'DONE',
+            self.message = {'code': '200', 'status': 'Done',
                             'message': 'Finger enrolled successfully'}
 
         except Exception as e:
             logging.error('Operation failed!')
             logging.error('Exception message: ' + str(e))
+            self.message = {'code': '404', 'status': 'ERROR',
+                            'message': str(e)}
 
             exit(1)
 
@@ -128,18 +131,21 @@ class FingerPrint():
                      str(self.f.getTemplateCount()) + '/' +
                      str(self.f.getStorageCapacity()))
 
-        position = self._delete_info(name)  # Delete infor in database
-
+        position = self._delete_info(name)  # Delete info in database
+        self.message = {'code': '102', 'status': 'Delete name',
+                        'message': 'Delete username in db'}
         try:
             positionNumber = position
             positionNumber = int(positionNumber)
-
+            self.message = {'code': '102', 'status': 'Delete template',
+                            'message': 'Delete template in finger print memory '}
             if (self.f.deleteTemplate(positionNumber) is True):
-                print('Template deleted!')
+
 
         except Exception as e:
             logging.error('Operation failed!')
-            logging.error('Exception message: ' + str(e))
+            self.message = {'code': '404', 'status': 'ERROR',
+                            'message': str(e)}
             exit(1)
 
 
@@ -180,16 +186,18 @@ class FingerPrint():
 
             # Tries to search the finger and calculate hash
 
-            logging.info('Waiting for finger...')
+            logging.info('Waiting for template...')
+            self.message = {'code': '100', 'message': 'Waiting for template...'}
 
             # Wait that finger is read
             # Serial read in __readPacket
 
             while (self.f.readImage() is False):
                 pass
-
+            self.message = {'code': '101', 'message': 'Get template successfully'}
             # Converts read image to characteristics
             # and stores it in charbuffer 1
+
             self.f.convertImage(Finger.CHARBUFFER1)
 
             # Searchs template
@@ -198,10 +206,12 @@ class FingerPrint():
             accuracyScore = result[1]
             if (positionNumber == -1):
                 logging.info('No match found!')
+                self.message = {'code': '102', 'message': 'No match found!'}
 
             else:
-                res = {'code': '200', 'status': '200',
-                       'message': 'Register Successfully'}
+                self.message = {'code': '200',
+                                'message': 'Register Successfully'}
+
                 logging.info('Found template at position: \t' +
                              str(positionNumber))
 
@@ -210,20 +220,19 @@ class FingerPrint():
                 self.f.loadTemplate(positionNumber, Finger.CHARBUFFER1)
 
                 # Downloads the characteristics of template loaded in charbuffer
-                characterics = str(self.f.downloadCharacteristics(
+                characteris = str(self.f.downloadCharacteristics(
                                    Finger.CHARBUFFER1)).encode('utf-8')
 
                 # Hashes characteristics of template
 
                 logging.info('SHA-2 hash of template: \t' +
-                            hashlib.sha256(characterics).hexdigest())
-                res = {'code': '200', 'status': '200',
-                       'message': 'Register Successfully'}
-                return res
+                            hashlib.sha256(characteris).hexdigest())
 
         except Exception as e:
             logging.error('Operation failed!')
             logging.error('Exception message: ' + str(e))
+            self.message = {'code': '404',
+                            'message': str(e)}
             exit(1)
 
 
@@ -263,7 +272,7 @@ class FingerPrint():
 
                 if new_name in namelist:
                     if i == 2:
-                        logging.info('Try again after 5 munites!!!')
+                        logging.info('Try again after 5 minutes!!!')
                         time.sleep(1*100)
                         break
                     logging.info('Name is registed!!!')
