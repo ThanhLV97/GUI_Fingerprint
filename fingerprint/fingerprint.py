@@ -50,17 +50,21 @@ def test_update_log():
 
 if __name__ == "__main__":
 
-    t1 = threading.Thread(target=log)
-    t2 = threading.Thread(target=test_update_log)
+    # t1 = threading.Thread(target=log)
+    # t2 = threading.Thread(target=test_update_log)
 
-    t1.start()
-    t2.start()
-    t1.join()
-    t2.join()
+    # t1.start()
+    # t2.start()
+    # t1.join()
+    # t2.join()
 
     # for i in range(100):
     #     Finger.remove_template_bypos(i)
 
     # print(Finger.message)
+    while True:
+        # Finger.enroll()
+        time.sleep(1)
+        Finger.recognize()
 
 

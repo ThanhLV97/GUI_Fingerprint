@@ -205,7 +205,6 @@ class FingerPrint():
             positionNumber = result[0]
             accuracyScore = result[1]
             if (positionNumber == -1):
-                print('-------------')
                 logging.info('No match found!')
 
             else:
