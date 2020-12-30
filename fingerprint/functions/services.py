@@ -6,6 +6,9 @@ import csv
 import pandas as pd
 from .config import Finger
 from .R305 import PyFingerprint
+from pymongo import MongoClient
+from db_manage import DataManage
+
 
 """R305 fingerprint sensor for raspberry pi 4"""
 __author__ = "Thanhlv"
@@ -29,7 +32,7 @@ class FingerPrint():
         self.password = password
         self.message = {'code': 'None', 'message': ''}
         self.db_path = './data/database.csv'
-
+        self.database = DataManage
 
 
         """Manager R305 services
@@ -53,6 +56,9 @@ class FingerPrint():
     def enroll(self):
         """
             Enrolling template for new staff.
+        
+        Return:
+            positionNumber(int): Index of template in memory
         """
         # Tries to enroll new finger
         try:
@@ -68,7 +74,7 @@ class FingerPrint():
             # Converts read image to characteristics
             # and stores it in charbuffer 1
             self.f.convertImage(Finger.CHARBUFFER1)
-            # Checks if finger is already enrolled
+            # Checks if finger is already enroll
             result = self.f.searchTemplate()
             positionNumber = result[0]
 
@@ -77,51 +83,42 @@ class FingerPrint():
                                 'message': 'You has been registered'}
                 logging.info('Template already exists at position #' +
                              str(positionNumber))
-                exit(0)
+                return None
 
-            self.message = {'code': '102', 'status': 'processing',
-                            'message': 'Processing .....'}
-            logging.info('Proccessing...')
-            time.sleep(2)
+            else:
+                self.message = {'code': '102', 'status': 'processing',
+                                'message': 'Processing .....'}
+                logging.info('Proccessing...')
+                time.sleep(2)
 
-            logging.info('Waiting for same finger again...')
-            self.message = {'code': '102', 'status': 'waiting',
-                            'message': 'Please try again ......'}
-            # Wait that finger is read again
-            while (self.f.readImage() is False):
-                pass
+                logging.info('Waiting for same finger again...')
+                self.message = {'code': '102', 'status': 'waiting',
+                                'message': 'Please try again ......'}
+                # Wait that finger is read again
+                while (self.f.readImage() is False):
+                    pass
 
-            # Converts read image to characteristics
-            # and stores it in charbuffer 2
-            self.f.convertImage(Finger.CHARBUFFER2)
+                # Converts read image to characteristics
+                # and stores it in charbuffer 2
+                self.f.convertImage(Finger.CHARBUFFER2)
 
-            # Compares the charbuffers
-            if (self.f.compareCharacteristics() == 0):
-                self.message = {'code': '401', 'status': 'processing',
-                                'message': 'Not matching '}
+                # Compares the charbuffers
+                if (self.f.compareCharacteristics() == 0):
+                    self.message = {'code': '401', 'status': 'processing',
+                                    'message': 'Not match '}
+                    return None
 
-                raise Exception('Fingers do not match')
-
-            # Creates a template
-            self.f.createTemplate()
-
-            # Saves template at new position number
-            positionNumber = self.f.storeTemplate()
-            logging.info('Finger enrolled successfully!')
-            logging.info('New template position #' + str(positionNumber))
-
-            self._enter_info(positionNumber)
-            self.message = {'code': '200', 'status': 'Done',
-                            'message': 'Finger enrolled successfully'}
-
-        except Exception as e:
-            logging.error('Operation failed!')
-            logging.error('Exception message: ' + str(e))
-            self.message = {'code': '404', 'status': 'ERROR',
-                            'message': str(e)}
-
-            exit(1)
-
+                else:
+                    # Creates a template
+                    self.f.createTemplate()
+                    # Saves template at new position number
+                    positionNumber = self.f.storeTemplate()
+                    # Downloads the characteristics of template loaded in charbuffer
+                    characteris = str(self.f.downloadCharacteristics(
+                                        Finger.CHARBUFFER1)).encode('utf-8')
+                    # Hashes characteristics of template
+                    temp_sha = hashlib.sha256(characteris).hexdigest()
+                    return positionNumber
 
     def remove_template_byname(self, name):
 
@@ -139,12 +136,15 @@ class FingerPrint():
         position = self._delete_info(name)  # Delete info in database
         self.message = {'code': '102', 'status': 'Delete name',
                         'message': 'Delete username in db'}
+
         try:
             positionNumber = position
             positionNumber = int(positionNumber)
-            self.message = {'code': '102', 'status': 'Delete template',
-                            'message': 'Delete template in finger print memory'}
+            self.message = {'code': '102', 'status': 'Deleting',
+                            'message': 'Deleting template in finger print memory'}
             if (self.f.deleteTemplate(positionNumber) is True):
+                self.message = {'code': '102', 'status': 'deleted',
+                                'message': 'deleted template in finger print memory'}
 
         except Exception as e:
             logging.error('Operation failed!')
@@ -171,7 +171,7 @@ class FingerPrint():
             positionNumber = int(positionNumber)
 
             if (self.f.deleteTemplate(positionNumber) is True):
-                logging.error('template is removed !!!')
+                print('Template deleted!')
 
         except Exception as e:
             logging.error('Operation failed!')
@@ -216,11 +216,14 @@ class FingerPrint():
                                 'message': 'No match found!'}
 
             else:
-                self.message = {'code': '200', 'status': 'successfull'
+                self.message = {'code': '200', 'status': 'successfull',
                                 'message': 'Register Successfully'}
 
                 logging.info('Found template at position: \t' +
                              str(positionNumber))
+                
+                data = self.database.fingerprint.find({'ID':'6'})
+                logging.info('data:',data)
 
                 # Loads the found template to charbuffer 1
 
@@ -228,7 +231,7 @@ class FingerPrint():
 
                 # Downloads the characteristics of template loaded in charbuffer
                 characteris = str(self.f.downloadCharacteristics(
-                                   Finger.CHARBUFFER1)).encode('utf-8')
+                                    Finger.CHARBUFFER1)).encode('utf-8')
 
                 # Hashes characteristics of template
 
@@ -238,10 +241,9 @@ class FingerPrint():
         except Exception as e:
             logging.error('Operation failed!')
             logging.error('Exception message: ' + str(e))
-            self.message = {'code': '404', 'status': 'ERROR'
+            self.message = {'code': '404', 'status': 'ERROR',
                             'message': str(e)}
             exit(1)
-
 
     def template_number(self):
         """
@@ -275,38 +277,53 @@ class FingerPrint():
                 namelist.append(row[1])
             # Two times checking
             for i in range(2):
-                new_name = input('Enter your ID: ').lower()
+                name = input('Enter your ID: ').lower()
 
-                if new_name in namelist:
+                if name in namelist:
                     if i == 2:
                         logging.info('Try again after 5 minutes!!!')
                         time.sleep(1*100)
-                        break
+                        i == 0
                     logging.info('Name is registed!!!')
                     i += 1
                 else:
                     if index == 0:
                         new_data = pd.DataFrame([{'Index': str(index),
-                                                  'Name': str(new_name)}])
+                                                  'Name': str(name)}])
                         new_data.to_csv(f, index=False, header=True)
                         f.close()
                         logging.info('You is register successful!!!')
+                        return name
                         break
                     else:
                         new_data = pd.DataFrame([{'Index': str(index),
-                                                  'Name': str(new_name)}])
+                                                  'Name': str(name)}])
                         new_data.to_csv(f, index=False, header=False)
                         f.close()
                         logging.info('You is register successful!!!')
+                        return name
                         break
+
+    def _enter_info_db(self, id, name, positionNumber, temp_sha):
+        data_user = self.database.sync_name(name)
+        if data_user is not None:
+            res = {'code':'200', 'status': 'registered',
+                   'message': 'staffname is found in database'}
+            return res
+
+        else:
+            self.database.push_data(id, positionNumber, name, temp_sha)
+            res = {'code':'200', 'status': 'registered',
+                   'message': 'Register successfull'}
+            return res
 
 
     def _delete_info(self, name):
 
-        """ Delete infor in db according to name
+        """ Delete info in db according to name
 
         Returns:
-            [int]: Retrurn position number in database
+            [int]: Return position number in database
         """
 
         logging.info('Currently used templates: ' +
@@ -329,12 +346,12 @@ class FingerPrint():
         return position
 
 
-    def test_infor(self, name):
+    def test_info(self, name):
 
-        """ Delete infor in db according to name
+        """ Delete info in db according to name
 
         Returns:
-            [int]: Retrurn position number in database
+            [int]: Return position number in database
         """
 
         logging.info('Currently used templates: ' +
