@@ -7,7 +7,7 @@ import pandas as pd
 from .config import Finger
 from .R305 import PyFingerprint
 from pymongo import MongoClient
-from db_manage import DataManage
+from .db_manage import DataManage, Key
 
 
 """R305 fingerprint sensor for raspberry pi 4"""
@@ -32,7 +32,7 @@ class FingerPrint():
         self.password = password
         self.message = {'code': 'None', 'message': ''}
         self.db_path = './data/database.csv'
-        self.database = DataManage
+        self.database = DataManage()
 
 
         """Manager R305 services
@@ -61,99 +61,80 @@ class FingerPrint():
             positionNumber(int): Index of template in memory
         """
         # Tries to enroll new finger
+
         try:
-            self.message = {'code': '100', 'status': 'begin',
-                            'message': 'Please give template simple'}
+            i = 0
+            pos_Numbers, temp_shas = [], []
+            while i < 2:
+                self.message = {'code': '100', 'status': 'begin',
+                                'message': 'Please give template simple'}
 
-            # Wait that finger is read
-            while (self.f.readImage() is False):
-                self.message = {'code': '102', 'status': 'waiting',
-                                'massage': 'Waiting for template simple'}
-                pass
-
-            # Converts read image to characteristics
-            # and stores it in charbuffer 1
-            self.f.convertImage(Finger.CHARBUFFER1)
-            # Checks if finger is already enroll
-            result = self.f.searchTemplate()
-            positionNumber = result[0]
-
-            if (positionNumber >= 0):
-                self.message = {'code': '200', 'status': 'registed',
-                                'message': 'You has been registered'}
-                logging.info('Template already exists at position #' +
-                             str(positionNumber))
-                return None
-
-            else:
-                self.message = {'code': '102', 'status': 'processing',
-                                'message': 'Processing .....'}
-                logging.info('Proccessing...')
-                time.sleep(2)
-
-                logging.info('Waiting for same finger again...')
-                self.message = {'code': '102', 'status': 'waiting',
-                                'message': 'Please try again ......'}
-                # Wait that finger is read again
+                # Wait that finger is read
                 while (self.f.readImage() is False):
+                    self.message = {'code': '102', 'status': 'waiting',
+                                    'massage': 'Waiting for template simple'}
                     pass
 
                 # Converts read image to characteristics
-                # and stores it in charbuffer 2
-                self.f.convertImage(Finger.CHARBUFFER2)
+                # and stores it in charbuffer 1
+                self.f.convertImage(Finger.CHARBUFFER1)
+                # Checks if finger is already enroll
+                result = self.f.searchTemplate()
+                positionNumber = result[0]
 
-                # Compares the charbuffers
-                if (self.f.compareCharacteristics() == 0):
-                    self.message = {'code': '401', 'status': 'processing',
-                                    'message': 'Not match '}
-                    return None
+                if (positionNumber >= 0):
+                    self.message = {'code': '200', 'status': 'registed',
+                                    'message': 'You has been registered'}
+                    logging.info('Template already exists at position #' +
+                                str(positionNumber))
+                    i += 1
 
                 else:
-                    # Creates a template
-                    self.f.createTemplate()
-                    # Saves template at new position number
-                    positionNumber = self.f.storeTemplate()
-                    # Downloads the characteristics of template loaded in charbuffer
-                    characteris = str(self.f.downloadCharacteristics(
-                                        Finger.CHARBUFFER1)).encode('utf-8')
-                    # Hashes characteristics of template
-                    temp_sha = hashlib.sha256(characteris).hexdigest()
-                    return positionNumber
+                    self.message = {'code': '102', 'status': 'processing',
+                                    'message': 'Processing .....'}
+                    logging.info('Proccessing...')
+                    time.sleep(2)
 
-    def remove_template_byname(self, name):
+                    logging.info('Waiting for same finger again...')
+                    self.message = {'code': '102', 'status': 'waiting',
+                                    'message': 'Please try again ......'}
+                    # Wait that finger is read again
+                    while (self.f.readImage() is False):
+                        pass
 
-        """Remove template and username in database
+                    # Converts read image to characteristics
+                    # and stores it in charbuffer 2
+                    self.f.convertImage(Finger.CHARBUFFER2)
 
-        Args:
-            name (String): Username
+                    # Compares the charbuffers
+                    if (self.f.compareCharacteristics() == 0):
+                        self.message = {'code': '401', 'status': 'processing',
+                                        'message': 'Not match '}
 
-        """
+                    else:
+                        # Creates a template
+                        self.f.createTemplate()
+                        # Saves template at new position number
+                        positionNumber = self.f.storeTemplate()
+                        # Downloads the characteristics of template loaded in charbuffer
+                        characteris = str(self.f.downloadCharacteristics(
+                                            Finger.CHARBUFFER1)).encode('utf-8')
+                        # Hashes characteristics of template
+                        temp_sha = hashlib.sha256(characteris).hexdigest()
+                        pos_Numbers.append(positionNumber)
+                        temp_shas.append(temp_sha)
+                        i += 1
 
-        logging.info('Currently used templates: ' +
-                     str(self.f.getTemplateCount()) + '/' +
-                     str(self.f.getStorageCapacity()))
-
-        position = self._delete_info(name)  # Delete info in database
-        self.message = {'code': '102', 'status': 'Delete name',
-                        'message': 'Delete username in db'}
-
-        try:
-            positionNumber = position
-            positionNumber = int(positionNumber)
-            self.message = {'code': '102', 'status': 'Deleting',
-                            'message': 'Deleting template in finger print memory'}
-            if (self.f.deleteTemplate(positionNumber) is True):
-                self.message = {'code': '102', 'status': 'deleted',
-                                'message': 'deleted template in finger print memory'}
-
+                return pos_Numbers, temp_shas
         except Exception as e:
             logging.error('Operation failed!')
+            logging.error('Exception message: ' + str(e))
             self.message = {'code': '404', 'status': 'ERROR',
                             'message': str(e)}
             exit(1)
 
 
-    def remove_template_bypos(self, position):
+    def remove_template(self, id):
 
         """Remove template and username in database
 
@@ -161,22 +142,25 @@ class FingerPrint():
             name (String): Username
 
         """
+        pos = self.database.get_info(id, Key.pos)
+        for i in pos:
+        
+            
+            logging.info('Currently used templates: ' +
+                        str(self.f.getTemplateCount()) + '/' +
+                        str(self.f.getStorageCapacity()))
 
-        logging.info('Currently used templates: ' +
-                     str(self.f.getTemplateCount()) + '/' +
-                     str(self.f.getStorageCapacity()))
+            try:
+                positionNumber = i
+                positionNumber = int(positionNumber)
 
-        try:
-            positionNumber = position
-            positionNumber = int(positionNumber)
+                if (self.f.deleteTemplate(positionNumber) is True):
+                    print('Template deleted!')
 
-            if (self.f.deleteTemplate(positionNumber) is True):
-                print('Template deleted!')
-
-        except Exception as e:
-            logging.error('Operation failed!')
-            logging.error('Exception message: ' + str(e))
-            exit(1)
+            except Exception as e:
+                logging.error('Operation failed!')
+                logging.error('Exception message: ' + str(e))
+                exit(1)
 
     def recognize(self):
         """
@@ -185,8 +169,8 @@ class FingerPrint():
 
         try:
             logging.info('Currently used templates:\t' +
-                         str(self.f.getTemplateCount()) + '/' +
-                         str(self.f.getStorageCapacity()))
+                        str(self.f.getTemplateCount()) + '/' +
+                        str(self.f.getStorageCapacity()))
 
             # Tries to search the finger and calculate hash
 
@@ -220,7 +204,7 @@ class FingerPrint():
                                 'message': 'Register Successfully'}
 
                 logging.info('Found template at position: \t' +
-                             str(positionNumber))
+                            str(positionNumber))
                 
                 data = self.database.fingerprint.find({'ID':'6'})
                 logging.info('data:',data)
@@ -234,7 +218,6 @@ class FingerPrint():
                                     Finger.CHARBUFFER1)).encode('utf-8')
 
                 # Hashes characteristics of template
-
                 logging.info('SHA-2 hash of template: \t' +
                             hashlib.sha256(characteris).hexdigest())
 
@@ -304,26 +287,31 @@ class FingerPrint():
                         return name
                         break
 
-    def _enter_info_db(self, id, name, positionNumber, temp_sha):
-        data_user = self.database.sync_name(name)
-        if data_user is not None:
-            res = {'code':'200', 'status': 'registered',
-                   'message': 'staffname is found in database'}
-            return res
+    def _enter_info_db(self, id, name, pos, temp_sha):
 
-        else:
-            self.database.push_data(id, positionNumber, name, temp_sha)
-            res = {'code':'200', 'status': 'registered',
-                   'message': 'Register successfull'}
-            return res
+        """ Get all info from UI and check and update data into mongodb.
+        Args:
+            id(int): User ID
+            name(str): Username
+            pos(int): Position template in fingerprint memory
+            temp_sha(str): SHA hash code of template
 
+        Return:
+            Status(json): info about the process
+        """
+        self.message = {'code': 100, 'status': 'checking'}
+        status, _ = self.database.check_finger(id)
+
+        self.message = {'code': 100, 'status': 'pushing'}
+        res = self.database.push_data(status, id, name, pos, temp_sha)
+        self.message = {'code': 200, 'status': 'success'}
 
     def _delete_info(self, name):
 
-        """ Delete info in db according to name
+        """ Delete info in db according to name.
 
         Returns:
-            [int]: Return position number in database
+            [int]: Return position number in database.
         """
 
         logging.info('Currently used templates: ' +
