@@ -1,3 +1,4 @@
+import RPi.GPIO as IO
 import logging
 import os
 import time
@@ -7,8 +8,7 @@ import pandas as pd
 from .config import Finger
 from .R305 import PyFingerprint
 from pymongo import MongoClient
-from .db_manage import DataManage, Key
-
+from .db_manage import DataManage
 
 """R305 fingerprint sensor for raspberry pi 4"""
 __author__ = "Thanhlv"
@@ -25,7 +25,7 @@ class FingerPrint():
 
     def __init__(self, port='/dev/ttyS0', baudRate=57600,
                  address=0xFFFFFFFF, password=0x00000000):
-
+        
         self.port = port
         self.baudRate = baudRate
         self.address = address
@@ -33,7 +33,11 @@ class FingerPrint():
         self.message = {'code': 'None', 'message': ''}
         self.db_path = './data/database.csv'
         self.database = DataManage()
-
+        # Config for relay
+        self.relay = 18
+        IO.setmode(IO.BCM)   
+        IO.setup(self.relay,IO.OUT)  
+        IO.setwarnings(False)
 
         """Manager R305 services
         """
@@ -206,8 +210,8 @@ class FingerPrint():
                 logging.info('Found template at position: \t' +
                             str(positionNumber))
                 
-                data = self.database.fingerprint.find({'ID':'6'})
-                logging.info('data:',data)
+                # data = self.database.fingerprint.find({'ID':'6'})
+                # logging.info('data:',data)
 
                 # Loads the found template to charbuffer 1
 
@@ -220,6 +224,8 @@ class FingerPrint():
                 # Hashes characteristics of template
                 logging.info('SHA-2 hash of template: \t' +
                             hashlib.sha256(characteris).hexdigest())
+                # Controll relay
+                self._open_door()
 
         except Exception as e:
             logging.error('Operation failed!')
@@ -382,3 +388,15 @@ class FingerPrint():
         """
 
         self.f.setPassword(new_password)
+    
+    def _open_door(self):
+        """
+            Control the relay for opening the door.
+        """
+        IO.output(self.relay, 0)
+        time.sleep(0.5)
+        IO.output(self.relay, 1)
+        time.sleep(0.5)
+        IO.output(self.relay, 0)
+        time.sleep(0.5)
+
